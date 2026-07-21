@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-labelledby="title desc">
+  <title id="title">Eintracht Frankfurt</title>
+  <desc id="desc">Rotes Adler-Wappen für das interne Teamboard</desc>
+  <circle cx="60" cy="60" r="57" fill="#e41e2b"/>
+  <circle cx="60" cy="60" r="48" fill="#fff"/>
+  <circle cx="60" cy="60" r="44" fill="none" stroke="#e41e2b" stroke-width="3"/>
+  <g fill="#e41e2b">
+    <path d="M57 27h6l3 6-3 5h-6l-3-5z"/>
+    <path d="M54 35l6-7 6 7-2 8h-8z"/>
+    <path d="M56 40h8v35h-8z"/>
+    <path d="M53 43L38 34l-16 4 13 7-16 6 20 3-17 10 24-4 10 8V49z"/>
+    <path d="M67 43l15-9 16 4-13 7 16 6-20 3 17 10-24-4-10 8V49z"/>
+    <path d="M45 63l11 7v15l-14 10 5-14-12 5 9-13-13 1z"/>
+    <path d="M75 63l-11 7v15l14 10-5-14 12 5-9-13 13 1z"/>
+    <path d="M54 82h12l-2 11h-8z"/>
+  </g>
+  <path d="M53 48h15v6h-9v4h8v6h-8v5h9v6H53z" fill="#fff"/>
+</svg>
