@@ -1,59 +1,34 @@
-name: Publish and deploy application
+name: Deploy application
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "*/5 * * * *"
-  issues:
-    types: [opened]
   push:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: initial-production-bootstrap
-  cancel-in-progress: false
+  group: eintracht-production
+  cancel-in-progress: true
 
 jobs:
-  publish-and-deploy:
+  validate-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Detect verified source archive
-        id: archive
-        shell: bash
-        run: |
-          if [ -f .source-v2/part00 ]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Expand verified application source
-        if: steps.archive.outputs.present == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          cat .source-v2/part* | base64 --decode > /tmp/eintracht-source.tar.gz
-          echo "ace02085a8ca02a0dd39b3ffc2bcb7db58e7229017b19b51e3e9f58ec0c7b859  /tmp/eintracht-source.tar.gz" | sha256sum -c -
-          tar -tzf /tmp/eintracht-source.tar.gz >/dev/null
-          tar -xzf /tmp/eintracht-source.tar.gz -C .
+      - name: Checkout source
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        if: steps.archive.outputs.present == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
 
-      - name: Validate application
-        if: steps.archive.outputs.present == 'true'
+      - name: Validate Django application
         shell: bash
+        env:
+          DJANGO_SECRET_KEY: ci-only-secret-key
         run: |
           set -euo pipefail
           pip install -r requirements.txt
@@ -61,27 +36,7 @@ jobs:
           python manage.py test
           python manage.py collectstatic --noinput
 
-      - name: Publish readable source
-        if: steps.archive.outputs.present == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -rf .bootstrap .source-v2
-
-          # Never let the extracted package create or modify GitHub workflows.
-          # GitHub Apps without the workflows permission are correctly blocked
-          # from pushing such changes, so restore the trusted workflow directory.
-          rm -rf .github/workflows
-          git checkout HEAD -- .github/workflows
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "Publish privacy-safe Team Performance application"
-          git push
-
       - name: Deploy via SSH
-        if: steps.archive.outputs.present == 'true'
         uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.HOST }}
@@ -90,25 +45,37 @@ jobs:
           command_timeout: 20m
           script_stop: true
           script: |
-            set -e
+            set -euo pipefail
             export DEBIAN_FRONTEND=noninteractive
+
             if ! command -v git >/dev/null 2>&1; then
-              apt-get update && apt-get install -y git curl openssl
+              apt-get update
+              apt-get install -y git curl openssl
             fi
+
             if ! command -v docker >/dev/null 2>&1; then
               curl -fsSL https://get.docker.com | sh
               systemctl enable --now docker
             fi
+
+            if ! docker compose version >/dev/null 2>&1; then
+              apt-get update
+              apt-get install -y docker-compose-plugin
+            fi
+
             mkdir -p /opt/eintracht
             if [ ! -d /opt/eintracht/.git ]; then
-              rm -rf /opt/eintracht/*
+              rm -rf /opt/eintracht
               git clone https://github.com/hsdarestani/eintracht.git /opt/eintracht
             else
               cd /opt/eintracht
               git fetch origin main
               git reset --hard origin/main
+              git clean -fd -e .env
             fi
+
             cd /opt/eintracht
+
             if [ ! -f .env ]; then
               SECRET=$(openssl rand -hex 48)
               DBPASS=$(openssl rand -hex 32)
@@ -122,7 +89,20 @@ jobs:
             ENVFILE
               chmod 600 .env
             fi
+
             docker compose up -d --build --remove-orphans
             docker image prune -f
-            sleep 8
-            curl -fsS http://127.0.0.1/health/ -H 'Host: eintracht.smarbiz.sbs' || docker compose logs --tail=120
+
+            for attempt in $(seq 1 30); do
+              if curl -fsS http://127.0.0.1/health/ -H 'Host: eintracht.smarbiz.sbs' >/dev/null; then
+                echo "Application health check passed."
+                docker compose ps
+                exit 0
+              fi
+              sleep 4
+            done
+
+            echo "Application did not become healthy in time."
+            docker compose ps
+            docker compose logs --tail=200
+            exit 1
