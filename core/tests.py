@@ -1,7 +1,9 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
+from .management_views import POSITION_GROUP_INDEX
 from .models import (
     EVALUATION_CATEGORIES,
     Attendance,
@@ -53,6 +55,7 @@ class AuthenticatedPagesTests(TestCase):
             reverse("evaluate_player", args=[Player.objects.first().pk]),
             reverse("training_detail", args=[TrainingSession.objects.first().pk]),
             reverse("match_detail", args=[Match.objects.first().pk]),
+            reverse("event_edit", args=[TeamEvent.objects.first().pk]),
         ]
         for url in urls:
             with self.subTest(url=url):
@@ -114,3 +117,66 @@ class AuthenticatedPagesTests(TestCase):
         )
         self.assertRedirects(response, reverse("calendar"))
         self.assertEqual(TeamEvent.objects.count(), before + 1)
+
+    def test_calendar_entry_links_to_edit_page(self):
+        event = TeamEvent.objects.first()
+        local_start = timezone.localtime(event.starts_at)
+        response = self.client.get(
+            reverse("calendar"),
+            {"year": local_start.year, "month": local_start.month},
+        )
+        self.assertContains(response, reverse("event_edit", args=[event.pk]))
+
+    def test_calendar_event_can_be_edited(self):
+        event = TeamEvent.objects.first()
+        response = self.client.post(
+            reverse("event_edit", args=[event.pk]),
+            {
+                "title": "Aktualisierte Besprechung",
+                "event_type": "meeting",
+                "starts_at": "2026-08-02T10:00",
+                "ends_at": "2026-08-02T11:00",
+                "location": "Analysezentrum",
+                "notes": "Neue Agenda",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        event.refresh_from_db()
+        self.assertEqual(event.title, "Aktualisierte Besprechung")
+        self.assertEqual(event.location, "Analysezentrum")
+
+    def test_squad_default_order_is_position_then_shirt_number(self):
+        response = self.client.get(reverse("players"))
+        players = response.context["players"]
+        group_indexes = [POSITION_GROUP_INDEX[player.position_group_key] for player in players]
+        self.assertEqual(group_indexes, sorted(group_indexes))
+        for group_key in POSITION_GROUP_INDEX:
+            numbers = [player.shirt_number for player in players if player.position_group_key == group_key]
+            self.assertEqual(numbers, sorted(numbers))
+
+    def test_top_and_bottom_rating_filters(self):
+        top_response = self.client.get(reverse("players"), {"rating": "top"})
+        top_scores = [float(player.avg_performance) for player in top_response.context["players"]]
+        self.assertEqual(top_scores, sorted(top_scores, reverse=True))
+        self.assertLessEqual(len(top_scores), 5)
+
+        bottom_response = self.client.get(reverse("players"), {"rating": "bottom"})
+        bottom_scores = [float(player.avg_performance) for player in bottom_response.context["players"]]
+        self.assertEqual(bottom_scores, sorted(bottom_scores))
+        self.assertLessEqual(len(bottom_scores), 5)
+
+    def test_report_can_filter_a_specific_player(self):
+        player = Player.objects.first()
+        response = self.client.get(
+            reverse("report"),
+            {"type": "player", "player": player.pk},
+        )
+        self.assertContains(response, f"Spielerreport · {player.full_name}")
+        self.assertContains(response, "Spieleinsätze")
+
+    def test_report_searches_specific_matches(self):
+        response = self.client.get(
+            reverse("report"),
+            {"type": "match", "q": "Rheinstadt"},
+        )
+        self.assertContains(response, "Spielbericht · vs. FC Rheinstadt")
