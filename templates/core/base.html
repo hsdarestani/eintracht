@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="{% static 'css/evaluation.css' %}">
   <link rel="stylesheet" href="{% static 'css/dashboard-brand.css' %}">
   <link rel="stylesheet" href="{% static 'css/match-ratings.css' %}">
+  <link rel="stylesheet" href="{% static 'css/management.css' %}">
 </head>
 <body>
 <div class="app-shell">
@@ -21,7 +22,7 @@
     </div>
     <nav class="nav">
       <a href="{% url 'dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"><span>⌂</span>Übersicht</a>
-      <a href="{% url 'calendar' %}" class="{% if request.resolver_match.url_name == 'calendar' or request.resolver_match.url_name == 'event_create' %}active{% endif %}"><span>□</span>Kalender</a>
+      <a href="{% url 'calendar' %}" class="{% if request.resolver_match.url_name == 'calendar' or request.resolver_match.url_name == 'event_create' or request.resolver_match.url_name == 'event_edit' %}active{% endif %}"><span>□</span>Kalender</a>
       <a href="{% url 'trainings' %}" class="{% if 'training' in request.resolver_match.url_name %}active{% endif %}"><span>△</span>Training</a>
       <a href="{% url 'players' %}" class="{% if 'player' in request.resolver_match.url_name %}active{% endif %}"><span>◉</span>Kader</a>
       <a href="{% url 'matches' %}" class="{% if 'match' in request.resolver_match.url_name %}active{% endif %}"><span>◇</span>Spiele</a>
@@ -55,7 +56,7 @@
 </div>
 <nav class="mobile-nav">
   <a href="{% url 'dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"><span>⌂</span>Übersicht</a>
-  <a href="{% url 'calendar' %}" class="{% if request.resolver_match.url_name == 'calendar' %}active{% endif %}"><span>□</span>Kalender</a>
+  <a href="{% url 'calendar' %}" class="{% if request.resolver_match.url_name == 'calendar' or request.resolver_match.url_name == 'event_edit' %}active{% endif %}"><span>□</span>Kalender</a>
   <a href="{% url 'training_create' %}" class="mobile-primary"><span>＋</span>Planen</a>
   <a href="{% url 'players' %}" class="{% if 'player' in request.resolver_match.url_name %}active{% endif %}"><span>◉</span>Kader</a>
   <a href="{% url 'report' %}" class="{% if request.resolver_match.url_name == 'report' %}active{% endif %}"><span>▤</span>Report</a>
