@@ -4,14 +4,14 @@ A private, German-language coaching dashboard focused on simple workflows for sq
 
 ## Current source package
 
-The reviewed Django source is stored in the `.bootstrap/` archive parts while the initial GitHub Actions publishing job is prepared. It can be expanded at any time with:
+The reviewed, privacy-safe Django source is stored in the `.source-v2/` archive parts until the initial publishing workflow expands it. It can also be expanded manually with:
 
 ```bash
 chmod +x bootstrap-source.sh
 ./bootstrap-source.sh
 ```
 
-The script validates and extracts the complete application source into the repository root. No password, production environment file or local database is included in the archive.
+The extraction script validates the archive against its fixed SHA-256 checksum before writing any source files. The package contains only fictional demo players and a fictional opponent; no password, production environment file or local database is included.
 
 After extraction, start the production stack with:
 
@@ -20,3 +20,7 @@ docker compose up -d --build
 ```
 
 The application creates its first trainer account interactively at `/setup/`; no shared default password is shipped.
+
+## Deployment
+
+The `Publish and deploy application` GitHub Actions workflow validates the Django project, publishes the readable source to `main`, and deploys it to `eintracht.smarbiz.sbs` through the configured `HOST` and `PASS` repository secrets.
