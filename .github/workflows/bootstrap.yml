@@ -24,22 +24,24 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Detect bootstrap archive
+      - name: Detect verified source archive
         id: archive
         shell: bash
         run: |
-          if [ -f .bootstrap/part00 ]; then
+          if [ -f .source-v2/part00 ]; then
             echo "present=true" >> "$GITHUB_OUTPUT"
           else
             echo "present=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Expand application source
+      - name: Expand verified application source
         if: steps.archive.outputs.present == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          cat .bootstrap/part* | base64 --decode > /tmp/eintracht-source.tar.gz
+          cat .source-v2/part* | base64 --decode > /tmp/eintracht-source.tar.gz
+          echo "ace02085a8ca02a0dd39b3ffc2bcb7db58e7229017b19b51e3e9f58ec0c7b859  /tmp/eintracht-source.tar.gz" | sha256sum -c -
+          tar -tzf /tmp/eintracht-source.tar.gz >/dev/null
           tar -xzf /tmp/eintracht-source.tar.gz -C .
 
       - name: Set up Python
@@ -64,11 +66,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf .bootstrap
+          rm -rf .bootstrap .source-v2
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "Publish initial Team Performance application"
+          git commit -m "Publish privacy-safe Team Performance application"
           git push
 
       - name: Deploy via SSH
