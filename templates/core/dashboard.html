@@ -2,7 +2,7 @@
 {% load static %}
 {% block title %}Übersicht · Team Performance{% endblock %}
 {% block content %}
-<section class="page-head dashboard-head dashboard-brand-head"><div class="dashboard-brand-copy"><div class="dashboard-club-lockup"><img src="{% static 'img/eintracht-frankfurt-mark.svg' %}" alt="Eintracht Frankfurt" class="dashboard-club-logo"><div><span class="eyebrow">EINTRACHT FRANKFURT</span><h1>Teamboard</h1></div></div><p class="dashboard-brand-subline">Training, Kader und Leistung auf einen Blick.</p></div><div class="head-actions"><a href="{% url 'training_create' %}" class="btn btn-primary">＋ Training planen</a><a href="{% url 'event_create' %}" class="btn btn-secondary">Termin hinzufügen</a></div></section>
+<section class="page-head dashboard-head dashboard-brand-head"><div class="dashboard-brand-copy"><div class="dashboard-club-lockup"><img src="{% static 'img/eintracht-frankfurt-logo-1998-v2.svg' %}" alt="Eintracht Frankfurt" class="dashboard-club-logo"><div><span class="eyebrow">EINTRACHT FRANKFURT</span><h1>Teamboard</h1></div></div><p class="dashboard-brand-subline">Training, Kader und Leistung auf einen Blick.</p></div><div class="head-actions"><a href="{% url 'training_create' %}" class="btn btn-primary">＋ Training planen</a><a href="{% url 'event_create' %}" class="btn btn-secondary">Termin hinzufügen</a></div></section>
 
 <section class="quick-strip">
   <div class="quick-item"><span class="quick-icon red">◉</span><div><small>AKTIVE SPIELER</small><strong>{{ players_count }}</strong></div></div>
