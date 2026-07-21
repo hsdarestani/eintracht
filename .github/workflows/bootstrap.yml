@@ -1,6 +1,9 @@
 name: Publish application source
 
 on:
+  workflow_dispatch:
+  issues:
+    types: [opened]
   push:
     branches: [main]
 
