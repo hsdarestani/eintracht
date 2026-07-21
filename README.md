@@ -1,26 +1,47 @@
-# Eintracht Team Performance
+# Team Performance Hub
 
 A private, German-language coaching dashboard focused on simple workflows for squad status, player evaluations, training planning, match tracking, calendar overview and printable reports.
 
-## Current source package
+## Product principles
 
-The reviewed, privacy-safe Django source is stored in the `.source-v2/` archive parts until the initial publishing workflow expands it. It can also be expanded manually with:
+- One primary action per screen
+- Core coaching decisions visible before detailed data
+- Four-value player evaluation: mentality, physicality, performance and potential
+- Attendance changes saved with one click
+- Internal calendar without third-party API sharing
+- Print/PDF-friendly reports with trainer comments
+- First-run setup instead of a shared default password
+
+## Local development
 
 ```bash
-chmod +x bootstrap-source.sh
-./bootstrap-source.sh
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver
 ```
 
-The extraction script validates the archive against its fixed SHA-256 checksum before writing any source files. The package contains only fictional demo players and a fictional opponent; no password, production environment file or local database is included.
+Open `http://127.0.0.1:8000/setup/` to create the first trainer account. A demo squad and example data are created automatically.
 
-After extraction, start the production stack with:
+## Production
 
-```bash
-docker compose up -d --build
-```
+Production uses Docker Compose with Django, PostgreSQL and Caddy. Caddy obtains and renews the TLS certificate for `eintracht.smarbiz.sbs` automatically.
 
-The application creates its first trainer account interactively at `/setup/`; no shared default password is shipped.
+GitHub Actions deploys pushes to `main` using repository secrets:
 
-## Deployment
+- `HOST`: production server IP or hostname
+- `PASS`: root SSH password
 
-The `Publish and deploy application` GitHub Actions workflow validates the Django project, publishes the readable source to `main`, and deploys it to `eintracht.smarbiz.sbs` through the configured `HOST` and `PASS` repository secrets.
+The first deployment creates `/opt/eintracht/.env` with random application and database secrets. The first trainer account is created interactively at `/setup/`.
+
+## Privacy baseline
+
+- No public application API
+- HTTPS and HSTS
+- Secure session and CSRF cookies
+- PostgreSQL data stays on the assigned server
+- No analytics, tracking pixels or external font requests
+- Pages are marked `noindex,nofollow`
+
+This is an application baseline; a formal GDPR review, retention policy and role/permission concept should be completed before storing real athlete health or sensitive performance data.
