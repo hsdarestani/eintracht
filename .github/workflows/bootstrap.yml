@@ -1,0 +1,50 @@
+name: Publish application source
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: source-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect bootstrap archive
+        id: archive
+        shell: bash
+        run: |
+          if [ -f .bootstrap/part00 ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Expand application source
+        if: steps.archive.outputs.present == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .bootstrap/part* | base64 --decode > /tmp/eintracht-source.tar.gz
+          tar -xzf /tmp/eintracht-source.tar.gz -C .
+          rm -rf .bootstrap
+
+      - name: Publish readable source
+        if: steps.archive.outputs.present == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Publish initial Team Performance application"
+          git push
