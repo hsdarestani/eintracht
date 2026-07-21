@@ -4,6 +4,84 @@ from django.db import models
 
 SCORE_VALIDATORS = [MinValueValidator(1), MaxValueValidator(10)]
 
+EVALUATION_GROUPS = (
+    (
+        "overall",
+        "Gesamtbild",
+        (
+            ("overall", "Gesamtleistung"),
+            ("game_influence", "Einfluss auf das Spiel"),
+            ("man_of_match", "Man of the Match"),
+        ),
+    ),
+    (
+        "offensive",
+        "Offensive & Abschluss",
+        (
+            ("offense", "Offensive"),
+            ("creativity", "Kreativität"),
+            ("finishing", "Chancenverwertung"),
+            ("dribbling", "Dribbling"),
+            ("set_pieces", "Standards (Ecken, Freistöße, Elfmeter)"),
+            ("heading", "Kopfballspiel"),
+        ),
+    ),
+    (
+        "ball",
+        "Ball & Spielaufbau",
+        (
+            ("passing", "Passspiel"),
+            ("technique", "Technik"),
+            ("ball_control", "Ballkontrolle"),
+            ("game_intelligence", "Spielintelligenz"),
+            ("build_up_play", "Spieleröffnung"),
+            ("decision_making", "Entscheidungsfindung"),
+        ),
+    ),
+    (
+        "defensive",
+        "Defensive & Taktik",
+        (
+            ("defense", "Defensive"),
+            ("duels", "Zweikampfverhalten"),
+            ("positioning", "Stellungsspiel"),
+            ("pressing", "Pressing"),
+        ),
+    ),
+    (
+        "athletic",
+        "Athletik & Intensität",
+        (
+            ("work_rate", "Laufleistung"),
+            ("pace", "Tempo"),
+            ("stamina", "Ausdauer"),
+            ("commitment", "Einsatzbereitschaft"),
+        ),
+    ),
+    (
+        "team",
+        "Team & Persönlichkeit",
+        (
+            ("teamwork", "Teamplay"),
+            ("leadership", "Führungsqualität"),
+            ("mentality", "Mentalität"),
+            ("fairness", "Fairness"),
+            ("consistency", "Konstanz"),
+            ("versatility", "Vielseitigkeit"),
+            ("discipline", "Disziplin"),
+        ),
+    ),
+)
+
+EVALUATION_CATEGORIES = tuple(
+    (key, label, group_slug, group_label)
+    for group_slug, group_label, categories in EVALUATION_GROUPS
+    for key, label in categories
+)
+EVALUATION_CATEGORY_KEYS = tuple(item[0] for item in EVALUATION_CATEGORIES)
+EVALUATION_CATEGORY_LABELS = {item[0]: item[1] for item in EVALUATION_CATEGORIES}
+
+
 class Player(models.Model):
     class Status(models.TextChoices):
         AVAILABLE = "available", "Verfügbar"
@@ -36,6 +114,7 @@ class Player(models.Model):
     def __str__(self):
         return f"#{self.shirt_number} {self.full_name}"
 
+
 class TeamEvent(models.Model):
     class EventType(models.TextChoices):
         TRAINING = "training", "Training"
@@ -58,6 +137,7 @@ class TeamEvent(models.Model):
     def __str__(self):
         return self.title
 
+
 class TrainingSession(models.Model):
     class Status(models.TextChoices):
         PLANNED = "planned", "Geplant"
@@ -79,6 +159,7 @@ class TrainingSession(models.Model):
     def __str__(self):
         return f"{self.title} – {self.starts_at:%d.%m.%Y}"
 
+
 class Attendance(models.Model):
     class Status(models.TextChoices):
         PRESENT = "present", "Dabei"
@@ -94,11 +175,13 @@ class Attendance(models.Model):
     class Meta:
         constraints = [models.UniqueConstraint(fields=["training", "player"], name="unique_training_player")]
 
+
 class TaskAssignment(models.Model):
     training = models.ForeignKey(TrainingSession, on_delete=models.CASCADE, related_name="tasks")
     player = models.ForeignKey(Player, on_delete=models.CASCADE, related_name="tasks")
     task = models.CharField(max_length=220)
     completed = models.BooleanField(default=False)
+
 
 class PlayerEvaluation(models.Model):
     player = models.ForeignKey(Player, on_delete=models.CASCADE, related_name="evaluations")
@@ -107,6 +190,7 @@ class PlayerEvaluation(models.Model):
     physicality = models.PositiveSmallIntegerField(validators=SCORE_VALIDATORS)
     performance = models.PositiveSmallIntegerField(validators=SCORE_VALIDATORS)
     potential = models.PositiveSmallIntegerField(validators=SCORE_VALIDATORS, default=7)
+    scores = models.JSONField(default=dict, blank=True)
     comment = models.TextField(blank=True)
     coach = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
 
@@ -114,8 +198,48 @@ class PlayerEvaluation(models.Model):
         ordering = ["-evaluated_at"]
 
     @property
+    def normalized_scores(self):
+        values = dict(self.scores or {})
+        values.setdefault("overall", self.performance)
+        values.setdefault("mentality", self.mentality)
+        return values
+
+    @property
     def average(self):
+        values = self.normalized_scores
+        if "overall" in values:
+            return round(float(values["overall"]), 1)
         return round((self.mentality + self.physicality + self.performance) / 3, 1)
+
+    @property
+    def detailed_average(self):
+        values = [
+            float(value)
+            for key, value in self.normalized_scores.items()
+            if key in EVALUATION_CATEGORY_KEYS and value is not None
+        ]
+        return round(sum(values) / len(values), 1) if values else self.average
+
+    @property
+    def grouped_scores(self):
+        values = self.normalized_scores
+        groups = []
+        for slug, label, categories in EVALUATION_GROUPS:
+            items = [
+                {"key": key, "label": category_label, "value": values.get(key)}
+                for key, category_label in categories
+            ]
+            present = [float(item["value"]) for item in items if item["value"] is not None]
+            groups.append(
+                {
+                    "slug": slug,
+                    "label": label,
+                    "items": items,
+                    "average": round(sum(present) / len(present), 1) if present else None,
+                }
+            )
+        return groups
+
 
 class Match(models.Model):
     class Venue(models.TextChoices):
@@ -139,6 +263,7 @@ class Match(models.Model):
     def __str__(self):
         return f"vs. {self.opponent}"
 
+
 class MatchPerformance(models.Model):
     match = models.ForeignKey(Match, on_delete=models.CASCADE, related_name="performances")
     player = models.ForeignKey(Player, on_delete=models.CASCADE, related_name="match_performances")
@@ -154,6 +279,7 @@ class MatchPerformance(models.Model):
     @property
     def average(self):
         return round((self.mentality + self.physicality + self.performance) / 3, 1)
+
 
 class ReportNote(models.Model):
     title = models.CharField(max_length=160, default="Interner Teamreport")
