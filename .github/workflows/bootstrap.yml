@@ -1,7 +1,9 @@
-name: Publish application source
+name: Publish and deploy application
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
   issues:
     types: [opened]
   push:
@@ -11,11 +13,11 @@ permissions:
   contents: write
 
 concurrency:
-  group: source-bootstrap
+  group: initial-production-bootstrap
   cancel-in-progress: false
 
 jobs:
-  publish:
+  publish-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,15 +41,79 @@ jobs:
           set -euo pipefail
           cat .bootstrap/part* | base64 --decode > /tmp/eintracht-source.tar.gz
           tar -xzf /tmp/eintracht-source.tar.gz -C .
-          rm -rf .bootstrap
+
+      - name: Set up Python
+        if: steps.archive.outputs.present == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Validate application
+        if: steps.archive.outputs.present == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          pip install -r requirements.txt
+          python manage.py check
+          python manage.py test
+          python manage.py collectstatic --noinput
 
       - name: Publish readable source
         if: steps.archive.outputs.present == 'true'
         shell: bash
         run: |
           set -euo pipefail
+          rm -rf .bootstrap
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "Publish initial Team Performance application"
           git push
+
+      - name: Deploy via SSH
+        if: steps.archive.outputs.present == 'true'
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.HOST }}
+          username: root
+          password: ${{ secrets.PASS }}
+          command_timeout: 20m
+          script_stop: true
+          script: |
+            set -e
+            export DEBIAN_FRONTEND=noninteractive
+            if ! command -v git >/dev/null 2>&1; then
+              apt-get update && apt-get install -y git curl openssl
+            fi
+            if ! command -v docker >/dev/null 2>&1; then
+              curl -fsSL https://get.docker.com | sh
+              systemctl enable --now docker
+            fi
+            mkdir -p /opt/eintracht
+            if [ ! -d /opt/eintracht/.git ]; then
+              rm -rf /opt/eintracht/*
+              git clone https://github.com/hsdarestani/eintracht.git /opt/eintracht
+            else
+              cd /opt/eintracht
+              git fetch origin main
+              git reset --hard origin/main
+            fi
+            cd /opt/eintracht
+            if [ ! -f .env ]; then
+              SECRET=$(openssl rand -hex 48)
+              DBPASS=$(openssl rand -hex 32)
+              cat > .env <<ENVFILE
+            DJANGO_SECRET_KEY=$SECRET
+            POSTGRES_DB=teamboard
+            POSTGRES_USER=teamboard
+            POSTGRES_PASSWORD=$DBPASS
+            DJANGO_ALLOWED_HOSTS=eintracht.smarbiz.sbs,91.107.148.46
+            CSRF_TRUSTED_ORIGINS=https://eintracht.smarbiz.sbs
+            ENVFILE
+              chmod 600 .env
+            fi
+            docker compose up -d --build --remove-orphans
+            docker image prune -f
+            sleep 8
+            curl -fsS http://127.0.0.1/health/ -H 'Host: eintracht.smarbiz.sbs' || docker compose logs --tail=120
