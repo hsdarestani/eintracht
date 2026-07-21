@@ -1,4 +1,7 @@
 from django.urls import path
+
+from ratings import views as rating_views
+
 from . import views
 
 urlpatterns = [
@@ -16,6 +19,6 @@ urlpatterns = [
     path("kalender/neu/", views.event_create, name="event_create"),
     path("spiele/", views.match_list, name="matches"),
     path("spiele/neu/", views.match_create, name="match_create"),
-    path("spiele/<int:pk>/", views.match_detail, name="match_detail"),
+    path("spiele/<int:pk>/", rating_views.match_detail, name="match_detail"),
     path("report/", views.report, name="report"),
 ]
